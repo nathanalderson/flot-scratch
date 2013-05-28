@@ -100,43 +100,128 @@
             return parseFloat(amount)
         }
 
-        function getColor(label) {
-            var color;
-            switch(label) {
-                case "MBA"  : color = "rgba(192, 80 , 77 , 0.6)"; break;
-                case "FBC"  : color = "rgba(79 , 129, 189, 0.6)"; break;
-                case "CBF"  : color = "rgba(155, 187, 89 , 0.6)"; break;
-                case "SBC"  : color = "rgba(128, 100, 162, 0.6)"; break;
-                case "none" : color = "rgba(0  , 0  , 0  , 0.6)"; break;
-            }
-            return color;
-        }
-
         function dollarString(num) {
             return "$"+(Math.round(num*100)/100).toFixed(2)
         }
 
-        function redraw() {
-			placeholder.unbind();
+        function calculate(amount, sbcChecked, cbfChecked, fbcChecked) {
+            var data = {};
 
-            var amount = getAmount();
-            var checked = $(".checkbox:checked")
-            var numChecked = checked.length
-            var missionsAmount = amount * 0.12
-            $("#toMissionsAmount").text(dollarString(missionsAmount))
-            data = [ { label: "FBC", data: missionsAmount*.1, color: getColor("FBC")}
-                   , { label: "MBA", data: missionsAmount*.1, color: getColor("MBA")} ]
-            missionsAmount = missionsAmount * .8
-            if(checked.length) {
-                $.each(checked, function(i, elem) {
-                    data.push({ label: $(elem).val(), data: missionsAmount/checked.length, color: getColor($(elem).val()) })
-                });
+            fbc_auto_percent = 0.2;
+            fbc_auto_amount = amount * fbc_auto_percent;
+            data['fbc-auto'] = {data: fbc_auto_amount, ordinal: 10};
+
+            mba_auto_percent = 0;
+            mba_auto_amount = amount * mba_auto_percent;
+            data['mba-auto'] = {data: mba_auto_amount, ordinal: 20};
+
+            amount = amount - mba_auto_amount - fbc_auto_amount;
+
+            var orgs   = ['sbc', 'cbf', 'fbc'];
+            var checks = [sbcChecked, cbfChecked, fbcChecked];
+
+            // how many are checked?
+            var numChecked = 0;
+            numChecked += sbcChecked ? 1 : 0;
+            numChecked += cbfChecked ? 1 : 0;
+            numChecked += fbcChecked ? 1 : 0;
+
+            // if none checked, it's all undesignated
+            if (numChecked == 0)
+                data['undesignated'] = {data: amount, ordinal: 25};
+
+            // compute totals for each org
+            var sbcTotal = sbcChecked ? (amount/numChecked) : 0;
+            var cbfTotal = cbfChecked ? (amount/numChecked) : 0;
+            var fbcTotal = fbcChecked ? (amount/numChecked) : 0;
+            data['sbc-total'] = {data: sbcTotal, ordinal: 30};
+            data['cbf-total'] = {data: cbfTotal, ordinal: 40};
+            data['fbc-total'] = {data: fbcTotal, ordinal: 50};
+
+            // sbc details
+            sbc_state_percent    = 0.57;
+            sbc_state_amount     = data['sbc-total'].data * sbc_state_percent;
+            sbc_national_amount  = data['sbc-total'].data - sbc_state_amount;
+            data['sbc-state']    = {data: sbc_state_amount, ordinal: 31};
+            data['sbc-national'] = {data: sbc_national_amount, ordinal: 32};
+
+            // cbf details
+            cbf_state_percent    = 0.20;
+            cbf_state_amount     = data['cbf-total'].data * cbf_state_percent;
+            cbf_national_percent = 0.50;
+            cbf_national_amount  = data['cbf-total'].data * cbf_national_percent;
+            cbf_asc_amount       = data['cbf-total'].data - cbf_national_amount - cbf_state_amount; // earmarked
+            data['cbf-state']    = {data: cbf_state_amount, ordinal: 41};
+            data['cbf-national'] = {data: cbf_national_amount, ordinal: 42};
+            data['cbf-asc']      = {data: cbf_asc_amount, ordinal: 43};
+
+            return data;
+        }
+
+        function getColor(label) {
+            var alpha;
+            if (/total/.test(label)) {
+                alpha = 0.6;
+            }
+            else if (/state/.test(label)) {
+                alpha = 0.45;
             }
             else {
-                data.push({ label: "Allocation determined by those who DID check a box"
-                          , data: missionsAmount, color: getColor("none") });
+                alpha = 0.3;
             }
 
+            var color;
+            if(/mba/.test(label))
+                color = "rgba(192, 80 , 77 , " + alpha + ")";
+            else if (/fbc/.test(label))
+                color = "rgba(79 , 129, 189, " + alpha + ")";
+            else if (/sbc/.test(label) || /asc/.test(label))
+                color = "rgba(128, 100, 162, " + alpha + ")";
+            else if (/cbf/.test(label))
+                color = "rgba(155, 187, 89 , " + alpha + ")";
+            else
+                color = "rgba(0  , 0  , 0  , " + alpha + ")";
+
+            return color;
+        }
+
+        function getLabel(label) {
+            return label;
+        }
+
+        function addColors(data) {
+            $.each(data, function(k, v) {
+                data[k].color = getColor(k);
+            });
+            return data;
+        }
+
+        function addLabels(data) {
+            $.each(data, function(k, v) {
+                data[k].label = getLabel(k);
+            });
+            return data;
+        }
+
+        function sortAndReshape(data, detail) {
+            var piedata = [];
+            // filter and place in array
+            $.each(data, function(k, v) {
+                if (/auto/.test(k) || /undesignated/.test(k))
+                    piedata.push(v);
+                else if (!detail && /total/.test(k))
+                    piedata.push(v);
+                else if (detail && (/fbc/.test(k) || !/total/.test(k)))
+                    piedata.push(v);
+            });
+
+            // sort
+            piedata.sort(function(a, b) { return a.ordinal - b.ordinal; });
+
+            return piedata;
+        }
+
+        function drawPlot(data) {
             function labelFormatter(label, series) {
                 return "<div style='font-size:8pt; text-align:center; padding:2px; color:white; max-width: 100px;'>" +
                     label + "<br/>" + dollarString(series.data[0][1]) + "</div>";
@@ -162,18 +247,33 @@
               , legend: {
                   show: false
                 }
-              // , grid: {
-                  // hoverable: true,
-                  // clickable: true
-                // }
             });
         }
 
-		$(document).ready(function() {
-            redraw();
-		});
+        function redraw() {
+			placeholder.unbind();
 
-        $(".checkbox").change(function() { redraw(); });
+            var amount = getAmount();
+            var missionsAmount = amount * 0.12
+            $("#toMissionsAmount").text(dollarString(missionsAmount));
+
+            var sbcChecked = $("#sbc-checkbox").is(":checked")
+            var cbfChecked = $("#cbf-checkbox").is(":checked")
+            var fbcChecked = $("#fbc-checkbox").is(":checked")
+            var detailChecked = $("#detail-checkbox").is(":checked")
+
+            data = calculate(missionsAmount, sbcChecked, cbfChecked, fbcChecked);
+            data = addColors(data);
+            data = addLabels(data);
+            data = sortAndReshape(data, detailChecked);
+
+            drawPlot(data);
+        }
+
+		$(document).ready(function() { redraw(); });
+        $(".orgCheckbox").change(function() { redraw(); });
+        $("#detail-checkbox").change(function() { redraw(); });
+        $("#amount").change(function() { redraw(); });
         $("#amount").spinner({
             min: 0,
             step: 10,
@@ -199,9 +299,11 @@
                 <p>Your gift amount:<br/>
                 <input id="amount" name="amount" value="100" /><br></p>
                 <p id="toMissions">Total amount "To missions": <span id="toMissionsAmount">$10.00</span></p>
-                <p><input class="checkbox" type="checkbox" name="SBC" value="SBC" />SBC</p>
-                <p><input class="checkbox" type="checkbox" name="CBF" value="CBF" />CBF</p>
-                <p><input class="checkbox" type="checkbox" name="FBC" value="FBC" />FBC</p>
+                <p><input class="orgCheckbox" type="checkbox" id="sbc-checkbox" name="SBC" value="SBC" checked/>SBC</p>
+                <p><input class="orgCheckbox" type="checkbox" id="cbf-checkbox" name="CBF" value="CBF" checked/>CBF</p>
+                <p><input class="orgCheckbox" type="checkbox" id="fbc-checkbox" name="FBC" value="FBC" checked/>FBC</p>
+                <p><hr width="200px"></p>
+                <p><input type="checkbox" id="detail-checkbox" name="detail" value="detail" />Show detail</p>
             </div>
 		</div>
 
