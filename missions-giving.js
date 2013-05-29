@@ -253,7 +253,7 @@ $("#amount").spinner({
     numberFormat: "C",
 });
 $("#amount").on("spinstop", function() { redraw(); });
-$(document).on("plothover", "#placeholder", function(event, pos, obj) {
+$(document).on("plothover plotclick", "#placeholder", function(event, pos, obj) {
     if (!obj) {
         return;
     }
