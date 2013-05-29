@@ -6,11 +6,49 @@ function getAmount() {
     var amount = $("#amount").val();
     if (amount[0] == '$')
         amount = amount.substring(1);
-    return parseFloat(amount)
+    return parseFloat(amount.replace(/,/g,''));
 }
 
 function dollarString(num) {
-    return "$"+(Math.round(num*100)/100).toFixed(2)
+    return "$"+(Math.round(num*100)/100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function getPopupText(obj) {
+    var label = obj.series.label;
+    var header;
+    var percent = parseFloat(obj.series.percent).toFixed(2);
+    var header = "<h4 id='popup-header' style='color:#999'>" + obj.series.label + " (" + percent + "%)</h4>";
+    // var header = "<h4 id='popup-header' style='color:" + obj.series.color + "'>" + obj.series.label + " (" + percent + "%)</h4>";
+    if (/2%/.test(label))
+        text = "Of the total amount of your gift, a fixed 2% goes to the First "
+             + "Baptist Church Missions fund.  This fund is administered by the "
+             + "Missions Committee and supports many local, domestic, and international "
+             + "ministries connected with our church.  Note that some of this fund also "
+             + "goes to support the Madison Baptist Association.";
+    else if (/First Baptist Missions/.test(label))
+        text = "If you check the 'FBC Missions' box, then a portion of your gift "
+             + "(additional to the fixed 2%) goes to that fund.  This fund is administered by the "
+             + "Missions Committee and supports many local, domestic, and international "
+             + "ministries connected with our church.  Note that some of this fund also "
+             + "goes to support the Madison Baptist Association.";
+    else if (/SBC/.test(label) || /Southern Baptist Convention/.test(label)) {
+        if (label.indexOf('*') == -1)
+            text = "If you check the 'SBC' box, then a portion of your gift is divided between "
+                 + "the SBC State Board of Missions (57%) and the SBC National Convention (43%).";
+        else
+            text = "When you check the 'CBF' box, a portion of your gift is still given "
+                 + "to the SBC State Board of Missions, but it is designated primarily for their "
+                 + "'Mission Entities of Alabama Baptists' fund which covers organizations such "
+                 + "as Samford University.";
+    }
+    else if (/CBF/.test(label) || /Cooperative Baptist Fellowship/.test(label))
+        text = "If you check the 'CBF' box, then a portion of your gift is divided between "
+             + "the CBF National Organization (50%), the Alabama CBF (20%), and the SBC "
+             + "State Board of Missions--although that money is designated primarily for their "
+             + "'Mission Entities of Alabama Baptists' fund.";
+    else
+        text = ""
+    return header + "<p>" + text + "</p>";
 }
 
 function calculate(amount, sbcChecked, cbfChecked, fbcChecked) {
@@ -48,18 +86,18 @@ function calculate(amount, sbcChecked, cbfChecked, fbcChecked) {
     data['fbc-total'] = {data: fbcTotal, ordinal: 50};
 
     // sbc details
-    sbc_state_percent    = 0.57;
-    sbc_state_amount     = data['sbc-total'].data * sbc_state_percent;
-    sbc_national_amount  = data['sbc-total'].data - sbc_state_amount;
+    var sbc_state_percent   = 0.57;
+    var sbc_state_amount    = data['sbc-total'].data * sbc_state_percent;
+    var sbc_national_amount = data['sbc-total'].data - sbc_state_amount;
     data['sbc-national'] = {data: sbc_national_amount, ordinal: 41};
     data['sbc-state']    = {data: sbc_state_amount, ordinal: 42};
 
     // cbf details
-    cbf_state_percent    = 0.20;
-    cbf_state_amount     = data['cbf-total'].data * cbf_state_percent;
-    cbf_national_percent = 0.50;
-    cbf_national_amount  = data['cbf-total'].data * cbf_national_percent;
-    cbf_asc_amount       = data['cbf-total'].data - cbf_national_amount - cbf_state_amount; // earmarked
+    var cbf_state_percent    = 0.20;
+    var cbf_state_amount     = data['cbf-total'].data * cbf_state_percent;
+    var cbf_national_percent = 0.50;
+    var cbf_national_amount  = data['cbf-total'].data * cbf_national_percent;
+    var cbf_asc_amount       = data['cbf-total'].data - cbf_national_amount - cbf_state_amount; // earmarked
     data['cbf-national'] = {data: cbf_national_amount, ordinal: 31};
     data['cbf-state']    = {data: cbf_state_amount, ordinal: 32};
     data['cbf-asc']      = {data: cbf_asc_amount, ordinal: 33};
@@ -209,6 +247,7 @@ $("#detail-checkbox").change(function() { redraw(); });
 $("#amount").change(function() { redraw(); });
 $("#amount").spinner({
     min: 0,
+    max: 1000000,
     step: 10,
     start: 100,
     numberFormat: "C",
@@ -218,8 +257,7 @@ $(document).on("plothover", "#placeholder", function(event, pos, obj) {
     if (!obj) {
         return;
     }
-    var percent = parseFloat(obj.series.percent).toFixed(2);
-    $("#hover").text("Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
+    $("#hover").html(getPopupText(obj));
     // $("#hover").text("<span id='popup' style='color:" + obj.series.color + "'>" + obj.series.label + " (" + percent + "%)</span>");
 });
 

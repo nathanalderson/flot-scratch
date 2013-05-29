@@ -113,7 +113,7 @@ input[type=checkbox] {
 #label {
     font-size:8pt;
     text-align:center;
-    padding:0px;
+    padding:8px;
     color:white;
     max-width: 100px;
 }
@@ -176,13 +176,27 @@ span.orgCheckboxLabel {
     padding-right: 20px;
 }
 
+#amount {
+    width: 150px;
+}
+
+p#toMissions {
+    font-size: 75%;
+}
+
+span#toMissionsAmount {
+    color: rgb(79,129,189);
+    font-weight: bold;
+}
+
 .checkboxes {
-    font-size: 90%;
+    font-size: 70%;
+    font-weight: bold;
 }
 
 div#hover {
     margin: 10px;
     padding: 5px;
-    border-top: 1px black solid;
+    border-top: 1px #999 solid;
     font-size: 70%;
 }
